@@ -1,18 +1,19 @@
 require("@nomicfoundation/hardhat-toolbox");
+require('dotenv').config();
 
-const NEXT_PUBLIC_POLYGON_MUMBAI_RPC =
-  "https://polygon-mumbai.g.alchemy.com/v2/0awa485pp03Dww2fTjrSCg7yHlZECw-K";
-const NEXT_PUBLIC_PRIVATE_KEY = "YOUR PRIVATE KEY";
+// const NEXT_PUBLIC_SEPOLIA_RPC = process.env.ALCHEMY_URL;
+
+// const NEXT_PUBLIC_PRIVATE_KEY = process.env.PRIVATE_KEY;
 /** @type import('hardhat/config').HardhatUserConfig */
 
 module.exports = {
-  solidity: "0.8.17",
-  defaultNetwork: "matic",
+  solidity: "0.8.19",
+  defaultNetwork: "sepolia",
   networks: {
     hardhat: {},
-    polygon_mumbai: {
-      url: NEXT_PUBLIC_POLYGON_MUMBAI_RPC,
-      accounts: [`0x${NEXT_PUBLIC_PRIVATE_KEY}`],
+    sepolia: {
+      url: process.env.ALCHEMY_URL,
+      accounts: [process.env.PRIVATE_KEY],
     },
   },
 };
