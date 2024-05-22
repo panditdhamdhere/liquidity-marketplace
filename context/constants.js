@@ -98,3 +98,44 @@ export const internalwooxContract = async () => {
     console.log(error);
   }
 };
+
+export const internalICOWooxContract = async () => {
+  try {
+    const web3Modal = new Web3Modal();
+    const connection = await web3Modal.connect();
+    const provider = new ethers.providers.web3Modal(connection);
+
+    const contract = fetchContract(provider, ICOWoox_Abi, ICOWoox_Address);
+
+    return contract;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+export const internalAddLiquidity = async () => {
+  try {
+    const web3Modal = new Web3Modal();
+    const connection = await web3Modal.connect();
+    const provider = new ethers.providers.web3Modal(connection);
+
+    const contract = fetchContract(provider, Liquidity_Abi, Liquidity_Address);
+
+    return contract;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+export const getBalance = async () => {
+  try {
+    const web3Modal = new Web3Modal();
+    const connection = await web3Modal.connect();
+    const provider = new ethers.providers.web3Modal(connection);
+    const signer = provider.getSigner();
+
+    return await signer.getBalance();
+  } catch (error) {
+    console.log(error);
+  }
+};
