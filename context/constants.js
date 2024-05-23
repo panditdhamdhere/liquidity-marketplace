@@ -86,7 +86,7 @@ export const connectingContract = async (ADDRESS) => {
   }
 };
 
-export const internalwooxContract = async () => {
+export const internalWooxContract = async () => {
   try {
     const web3Modal = new Web3Modal();
     const connection = await web3Modal.connect();
