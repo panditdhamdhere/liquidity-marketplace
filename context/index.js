@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ethers, Contract } from "ethers";
-import Web3Modal, { local } from "web3modal";
+import Web3Modal, { local, setLocal } from "web3modal";
 import axios from "axios";
 import UniswapV3Pool from "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json";
 import toast from "react-hot-toast";
@@ -32,6 +32,7 @@ import {
   internalAddLiquidity,
   getBalance,
   connectingContract,
+  Woox_Address,
 } from "./constants";
 
 import { parseErrorMsg } from "../Utils/index";
@@ -273,7 +274,229 @@ const createLiquidity = async (pool, liquidityAmount, approveAmount) => {
       amount0Min: amount0Desired.toString(),
       amount1Min: amount1Desired.toString(),
       recipient: address,
-      deadline: Math.floor(Date.now() / 1000),
+      deadline: Math.floor(Date.now() / 1000) + 60 * 10,
     };
-  } catch (error) {}
+
+    const transactionHash = await nonFungiblePositionManagerContract
+      .connect(signer)
+      .mint(params, { gasLimit: ethers.utils.hexlify(1000000) })
+      .then((res) => {
+        return res.hash;
+      });
+
+    if (transactionHash) {
+      const liquidityContract = await internalAddLiquidity();
+      const addLiquidityData = await liquidityContract
+        .connect(signer)
+        .addLiquidity(
+          pool.token_A.name,
+          pool.token_B.name,
+          pool.token_A.address,
+          pool.token_B.address,
+          poolAddress,
+          pool.token_B.chainId.toString(),
+          transactionHash
+        );
+      await addLiquidityData.wait();
+      setLoader(false);
+      notifySuccess("Liquidity added successfully");
+      window.location.reload();
+    }
+  } catch (error) {
+    const errorMessage = parseErrorMsg(error);
+    setLoader(false);
+    notifyError(errorMessage);
+  }
 };
+
+// Native token
+const fetchInitialData = async () => {
+  try {
+    // get user account
+    const account = await checkIfWalletConnected();
+    // get user balance
+    const balance = await getBalance();
+    setBalance(ethers.utils.formatEther(balance.toString()));
+    setAddress(account);
+
+    // woox token contract
+    const WOOX_TOKEN_CONTRACT = await internalWooxContract();
+
+    let tokenBalance;
+    if (account) {
+      tokenBalance = await WOOX_TOKEN_CONTRACT.balanceOf(account);
+    } else {
+      tokenBalance = 0;
+    }
+
+    const tokenName = await WOOX_TOKEN_CONTRACT.name();
+    const tokenSymbol = await WOOX_TOKEN_CONTRACT.symbol();
+    const tokenTotalSupply = await WOOX_TOKEN_CONTRACT.totalSupply();
+    const tokenStandard = await WOOX_TOKEN_CONTRACT.standard();
+    const tokenHolders = await WOOX_TOKEN_CONTRACT._userId();
+    const tokenOwnerOfContract = await WOOX_TOKEN_CONTRACT.ownerOfContract();
+    const tokenAddress = await WOOX_TOKEN_CONTRACT.address();
+
+    const nativeToken = {
+      tokenAddress: tokenAddress,
+      tokenName: tokenName,
+      tokenSymbol: tokenSymbol,
+      tokenOwnerOfContract: tokenOwnerOfContract,
+      tokenStandard: tokenStandard,
+      tokenTotalSupply: ethers.utils.formatEther(tokenTotalSupply.toString()),
+      tokenBalance: ethers.utils.formatEther(tokenBalance.toString()),
+      tokenHolders: tokenHolders.toNumber(),
+    };
+    setNativeToken(nativeToken);
+
+    // getting Token Holders
+    const getTokenHolders = await WOOX_TOKEN_CONTRACT.getTokenHolder();
+    setTokenHolders(getTokenHolders);
+
+    // fetting token holders data
+    if (account) {
+      const getTokenHolderData = await WOOX_TOKEN_CONTRACT.getTokenHolderData(
+        account
+      );
+
+      const currentHolder = {
+        tokenId: getTokenHolderData[0].toNumber(),
+        from: getTokenHolderData[1],
+        to: getTokenHolderData[2],
+        totalToken: ethers.utils.formatEther(getTokenHolderData[3].toString()),
+        tokenHolder: getTokenHolderData[4],
+      };
+      setCurrentHolder(currentHolder);
+    }
+
+    // token sale contract
+    const ICO_WOOX_CONTRACT = await internalICOWooxContract();
+    const tokenPrice = await ICO_WOOX_CONTRACT.tokenPrice();
+    const tokenSold = await ICO_WOOX_CONTRACT.tokenSold();
+    const tokenSaleBalance = await WOOX_TOKEN_CONTRACT.balanceOf(
+      "0x1d63C1B4c9B8Ba0767C2341f68ae1E74f7A49eea" // address to be added
+    );
+
+    const tokenSale = {
+      tokenPrice: ethers.utils.formatEther(tokenPrice.toString()),
+      tokenSold: tokenSold.toNumber(),
+      tokenSaleBalance: ethers.utils.formatEther(tokenSaleBalance.toString()),
+    };
+    setTokenSale(tokenSale);
+    console.log(tokenSale);
+    console.log(nativeToken);
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+useEffect(() => {
+  fetchInitialData();
+}, []);
+
+const buyToken = async (nToken) => {
+  try {
+    setLoader(true);
+    const PROVIDER = await web3Provider();
+    const signer = PROVIDER.getSigner();
+
+    const contract = internalICOWooxContract();
+    console.log(contract);
+
+    const price = 0.0001 * nToken;
+    const amount = ethers.utils.parseUnits(price.toString(), "ether");
+
+    const buying = await contract.connect(signer).buyTokens(nToken, {
+      value: amount.toString(),
+      gasLimit: ethers.utils.hexlify(1000000),
+    });
+
+    await buying.wait();
+    window.location.reload();
+  } catch (error) {
+    const errorMsg = parseErrorMsg(error);
+    console.log(error);
+    setLoader(false);
+    notifyError(errorMsg);
+  }
+};
+
+// native token transfer
+const transferNativeToken = async () => {
+  try {
+    setLoader(true);
+    const PROVIDER = await web3Provider();
+    const signer = PROVIDER.getSigner();
+
+    const TOKEN_SALE_ADDRESS = "0x58Db7D49D1D619860fc7AF5DCB9ce5CC75c96872";
+    const TOKEN_AMOUNT = 2000;
+    const tokens = TOKEN_AMOUNT.toString();
+    const transferAmount = ethers.utils.parseEther(tokens);
+
+    const contract = await internalWooxContract();
+    const transaction = await contract
+      .connect(signer)
+      .tranfer(TOKEN_SALE_ADDRESS, transferAmount);
+
+    await transaction.wait();
+    window.location.reload();
+  } catch (error) {
+    const errorMsg = parseErrorMsg(error);
+    setLoader(false);
+    notifyError(errorMsg);
+    // console.log(error);
+  }
+};
+
+// liquidity history
+const GET_ALL_LIQUIDITY = async () => {
+  try {
+    // get user account
+    const account = await checkIfWalletConnected();
+
+    const contract = await internalAddLiquidity();
+    const liquidityHistory = await contract.getAllLiquidity(account);
+
+    const AllLiquidity = liquidityHistory.map((liquidity) => {
+      const liquidityArray = {
+        id: liquidity.id.toNumber(),
+        network: liquidity.network,
+        owner: liquidity.owner,
+        poolAddress: liquidity.poolAddress,
+        tokenA: liquidity.tokenA,
+        tokenB: liquidity.tokenB,
+        tokenA_Address: liquidity.tokenA_Address,
+        tokenB_Address: liquidity.tokenB_Address,
+        timeCreated: liquidity.timeCreated.toNumber(),
+        transactionHash: liquidity.transactionHash,
+      };
+      return liquidityArray;
+    });
+    return AllLiquidity;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+return (
+  <CONTEXT.Provider
+    value={{
+      connect,
+      getPoolAddress,
+      LOAD_TOKEN,
+      notifyError,
+      notifySuccess,
+      createLiquidity,
+      GET_ALL_LIQUIDITY,
+      transferNativeToken,
+      buyToken,
+      tokenSale,
+      nativeToken,
+      address,
+      loader,
+      DAPP_NAME,
+    }}
+  >
+    {children}
+  </CONTEXT.Provider>
+);
